@@ -28,6 +28,7 @@ import {
   relMilestoneFile, relSliceFile, relTaskFile, relSlicePath, relMilestonePath,
   milestonesDir, resolveGsdRootFile, relGsdRootFile,
   buildMilestoneFileName, buildSliceFileName, buildTaskFileName,
+  projectResearchDir, resolveProjectResearchFile,
 } from "./paths.js";
 import { saveActivityLog } from "./activity-log.js";
 import { synthesizeCrashRecovery, getDeepDiagnostic } from "./session-forensics.js";
@@ -553,6 +554,7 @@ function describeNextUnit(state: GSDState): { label: string; description: string
 
 function unitVerb(unitType: string): string {
   switch (unitType) {
+    case "research-project":
     case "research-milestone":
     case "research-slice": return "researching";
     case "plan-milestone":
@@ -568,6 +570,7 @@ function unitVerb(unitType: string): string {
 
 function unitPhaseLabel(unitType: string): string {
   switch (unitType) {
+    case "research-project":
     case "research-milestone": return "RESEARCH";
     case "research-slice": return "RESEARCH";
     case "plan-milestone": return "PLAN";
@@ -584,6 +587,7 @@ function unitPhaseLabel(unitType: string): string {
 function peekNext(unitType: string, state: GSDState): string {
   const sid = state.activeSlice?.id ?? "";
   switch (unitType) {
+    case "research-project": return "research milestone";
     case "research-milestone": return "plan milestone roadmap";
     case "plan-milestone": return "research first slice";
     case "research-slice": return `plan ${sid}`;
@@ -1029,18 +1033,25 @@ async function dispatchNextUnit(
       return;
     }
 
-    // Research before roadmap if no research exists
-    const researchFile = resolveMilestoneFile(basePath, mid, "RESEARCH");
-    const hasResearch = !!(researchFile && await loadFile(researchFile));
+    // Project-level research before milestone research (runs once per project)
+    const projectResearchSummary = resolveProjectResearchFile(basePath, "SUMMARY.md");
 
-    if (!hasResearch) {
-      unitType = "research-milestone";
+    if (!projectResearchSummary) {
+      unitType = "research-project";
       unitId = mid;
-      prompt = await buildResearchMilestonePrompt(mid, midTitle!, basePath);
+      prompt = await buildResearchProjectPrompt(mid, midTitle!, basePath);
     } else {
-      unitType = "plan-milestone";
-      unitId = mid;
-      prompt = await buildPlanMilestonePrompt(mid, midTitle!, basePath);
+      const researchFile = resolveMilestoneFile(basePath, mid, "RESEARCH");
+      const hasResearch = !!(researchFile && await loadFile(researchFile));
+      if (!hasResearch) {
+        unitType = "research-milestone";
+        unitId = mid;
+        prompt = await buildResearchMilestonePrompt(mid, midTitle!, basePath);
+      } else {
+        unitType = "plan-milestone";
+        unitId = mid;
+        prompt = await buildPlanMilestonePrompt(mid, midTitle!, basePath);
+      }
     }
 
   } else if (state.phase === "planning") {
@@ -1520,7 +1531,42 @@ async function inlineGsdRootFile(
 
 // ─── Prompt Builders ──────────────────────────────────────────────────────────
 
+async function inlineProjectResearchSummary(base: string, inlined: string[]): Promise<void> {
+  const path = resolveProjectResearchFile(base, "SUMMARY.md");
+  const content = await inlineFileOptional(path, ".gsd/research/SUMMARY.md", "Project Research Summary");
+  if (content) inlined.push(content);
+}
+
 async function buildResearchMilestonePrompt(mid: string, midTitle: string, base: string): Promise<string> {
+  const contextPath = resolveMilestoneFile(base, mid, "CONTEXT");
+  const contextRel = relMilestoneFile(base, mid, "CONTEXT");
+
+  const inlined: string[] = [];
+  inlined.push(await inlineFile(contextPath, contextRel, "Milestone Context"));
+  const projectInline = await inlineGsdRootFile(base, "project.md", "Project");
+  if (projectInline) inlined.push(projectInline);
+  const requirementsInline = await inlineGsdRootFile(base, "requirements.md", "Requirements");
+  if (requirementsInline) inlined.push(requirementsInline);
+  const decisionsInline = await inlineGsdRootFile(base, "decisions.md", "Decisions");
+  if (decisionsInline) inlined.push(decisionsInline);
+  await inlineProjectResearchSummary(base, inlined);
+
+  const inlinedContext = `## Inlined Context (preloaded — do not re-read these files)\n\n${inlined.join("\n\n---\n\n")}`;
+
+  const outputRelPath = relMilestoneFile(base, mid, "RESEARCH");
+  const outputAbsPath = resolveMilestoneFile(base, mid, "RESEARCH") ?? join(base, outputRelPath);
+  return loadPrompt("research-milestone", {
+    milestoneId: mid, milestoneTitle: midTitle,
+    milestonePath: relMilestonePath(base, mid),
+    contextPath: contextRel,
+    outputPath: outputRelPath,
+    outputAbsPath,
+    inlinedContext,
+    ...buildSkillDiscoveryVars(),
+  });
+}
+
+async function buildResearchProjectPrompt(mid: string, midTitle: string, base: string): Promise<string> {
   const contextPath = resolveMilestoneFile(base, mid, "CONTEXT");
   const contextRel = relMilestoneFile(base, mid, "CONTEXT");
 
@@ -1535,14 +1581,12 @@ async function buildResearchMilestonePrompt(mid: string, midTitle: string, base:
 
   const inlinedContext = `## Inlined Context (preloaded — do not re-read these files)\n\n${inlined.join("\n\n---\n\n")}`;
 
-  const outputRelPath = relMilestoneFile(base, mid, "RESEARCH");
-  const outputAbsPath = resolveMilestoneFile(base, mid, "RESEARCH") ?? join(base, outputRelPath);
-  return loadPrompt("research-milestone", {
+  const outputDir = ".gsd/research";
+  const outputAbsDir = projectResearchDir(base);
+  return loadPrompt("research-project", {
     milestoneId: mid, milestoneTitle: midTitle,
-    milestonePath: relMilestonePath(base, mid),
-    contextPath: contextRel,
-    outputPath: outputRelPath,
-    outputAbsPath,
+    outputDir,
+    outputAbsDir,
     inlinedContext,
     ...buildSkillDiscoveryVars(),
   });
@@ -1566,6 +1610,7 @@ async function buildPlanMilestonePrompt(mid: string, midTitle: string, base: str
   if (requirementsInline) inlined.push(requirementsInline);
   const decisionsInline = await inlineGsdRootFile(base, "decisions.md", "Decisions");
   if (decisionsInline) inlined.push(decisionsInline);
+  await inlineProjectResearchSummary(base, inlined);
 
   const inlinedContext = `## Inlined Context (preloaded — do not re-read these files)\n\n${inlined.join("\n\n---\n\n")}`;
 
@@ -1602,6 +1647,7 @@ async function buildResearchSlicePrompt(
   if (decisionsInline) inlined.push(decisionsInline);
   const requirementsInline = await inlineGsdRootFile(base, "requirements.md", "Requirements");
   if (requirementsInline) inlined.push(requirementsInline);
+  await inlineProjectResearchSummary(base, inlined);
 
   const depContent = await inlineDependencySummaries(mid, sid, base);
 
@@ -2179,6 +2225,12 @@ function ensurePreconditions(
     mkdirSync(join(newDir, "slices"), { recursive: true });
   }
 
+  // For project-level research, ensure research dir exists
+  if (unitType === "research-project") {
+    const resDir = projectResearchDir(base);
+    if (!existsSync(resDir)) mkdirSync(resDir, { recursive: true });
+  }
+
   // For slice-level units, ensure slice dir exists
   if (parts.length >= 2) {
     const sid = parts[1]!;
@@ -2528,6 +2580,10 @@ export function resolveExpectedArtifactPath(unitType: string, unitId: string, ba
   const mid = parts[0]!;
   const sid = parts[1];
   switch (unitType) {
+    case "research-project": {
+      const resDir = projectResearchDir(base);
+      return join(resDir, "SUMMARY.md");
+    }
     case "research-milestone": {
       const dir = resolveMilestonePath(base, mid);
       return dir ? join(dir, buildMilestoneFileName(mid, "RESEARCH")) : null;
@@ -2589,6 +2645,8 @@ function diagnoseExpectedArtifact(unitType: string, unitId: string, base: string
   const mid = parts[0];
   const sid = parts[1];
   switch (unitType) {
+    case "research-project":
+      return `.gsd/research/SUMMARY.md (project research synthesis)`;
     case "research-milestone":
       return `${relMilestoneFile(base, mid!, "RESEARCH")} (milestone research)`;
     case "plan-milestone":

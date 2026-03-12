@@ -466,6 +466,7 @@ export function resolveModelForUnit(unitType: string): string | undefined {
   const m = prefs.preferences.models;
 
   switch (unitType) {
+    case "research-project":
     case "research-milestone":
     case "research-slice":
       return m.research;

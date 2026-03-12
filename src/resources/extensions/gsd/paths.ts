@@ -306,3 +306,14 @@ export function relTaskFile(
   }
   return `${sRel}/tasks/${buildTaskFileName(taskId, suffix)}`;
 }
+
+// ─── Project Research ─────────────────────────────────────────────────────
+
+export function projectResearchDir(basePath: string): string {
+  return join(gsdRoot(basePath), "research");
+}
+
+export function resolveProjectResearchFile(basePath: string, filename: string): string | null {
+  const filePath = join(projectResearchDir(basePath), filename);
+  return existsSync(filePath) ? filePath : null;
+}
