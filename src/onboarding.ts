@@ -255,8 +255,8 @@ async function runLlmStep(p: ClackModule, pc: PicoModule, authStorage: AuthStora
   const method = await p.select({
     message: 'How do you want to sign in?',
     options: [
-      { value: 'browser', label: 'Sign in with your browser', hint: 'recommended — same login as claude.ai / ChatGPT' },
-      { value: 'api-key', label: 'Paste an API key', hint: 'from your provider dashboard' },
+      { value: 'browser', label: 'Browser login (OAuth)', hint: 'recommended — opens your browser' },
+      { value: 'api-key', label: 'API key', hint: 'paste a key from your provider' },
       { value: 'skip', label: 'Skip for now', hint: 'use /login inside GSD later' },
     ],
   })
