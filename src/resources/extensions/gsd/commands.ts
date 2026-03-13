@@ -168,7 +168,7 @@ export function registerGSDCommand(pi: ExtensionAPI): void {
       }
 
       ctx.ui.notify(
-        `Unknown: /gsd ${trimmed}. Use /gsd, /gsd next, /gsd auto, /gsd stop, /gsd status, /gsd queue, /gsd discuss, /gsd prefs [global|project|status], /gsd doctor [audit|fix|heal] [M###/S##], /gsd migrate <path>, or /gsd remote [slack|discord|status|disconnect].`,
+        `Unknown: /gsd ${trimmed}. Use /gsd, /gsd next, /gsd auto, /gsd stop, /gsd status, /gsd queue, /gsd discuss, /gsd prefs [global|project|status|wizard|setup], /gsd doctor [audit|fix|heal] [M###/S##], /gsd migrate <path>, or /gsd remote [slack|discord|status|disconnect].`,
         "warning",
       );
     },
@@ -353,6 +353,8 @@ async function handlePrefsWizard(
       const val = input.trim();
       if (val && /^\d+$/.test(val)) {
         autoSup[field.key] = Number(val);
+      } else if (val && !/^\d+$/.test(val)) {
+        ctx.ui.notify(`Invalid value "${val}" for ${field.label} — must be a whole number. Keeping previous value.`, "warning");
       } else if (!val && currentStr) {
         delete autoSup[field.key];
       }
@@ -392,14 +394,37 @@ async function handlePrefsWizard(
   }
 
   // ─── Serialize to frontmatter ───────────────────────────────────────────
-  prefs.version = 1;
+  prefs.version = prefs.version || 1;
   const frontmatter = serializePreferencesToFrontmatter(prefs);
-  const content = `---\n${frontmatter}---\n\n# GSD Skill Preferences\n\nSee \`~/.gsd/agent/extensions/gsd/docs/preferences-reference.md\` for full field documentation and examples.\n`;
+
+  // Preserve existing body content (everything after closing ---)
+  let body = "\n# GSD Skill Preferences\n\nSee `~/.gsd/agent/extensions/gsd/docs/preferences-reference.md` for full field documentation and examples.\n";
+  if (existsSync(path)) {
+    const existingContent = readFileSync(path, "utf-8");
+    const closingIdx = existingContent.indexOf("\n---", existingContent.indexOf("---"));
+    if (closingIdx !== -1) {
+      const afterFrontmatter = existingContent.slice(closingIdx + 4); // skip past "\n---"
+      if (afterFrontmatter.trim()) {
+        body = afterFrontmatter;
+      }
+    }
+  }
+
+  const content = `---\n${frontmatter}---${body}`;
 
   await saveFile(path, content);
   await ctx.waitForIdle();
   await ctx.reload();
   ctx.ui.notify(`Saved ${scope} preferences to ${path}`, "success");
+}
+
+/** Wrap a YAML value in double quotes if it contains special characters. */
+function yamlSafeString(val: unknown): string {
+  if (typeof val !== "string") return String(val);
+  if (/[:#{\[\]'"`,|>&*!?@%]/.test(val) || val.trim() !== val || val === "") {
+    return `"${val.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  }
+  return val;
 }
 
 function serializePreferencesToFrontmatter(prefs: Record<string, unknown>): string {
@@ -420,21 +445,21 @@ function serializePreferencesToFrontmatter(prefs: Record<string, unknown>): stri
           const entries = Object.entries(item as Record<string, unknown>);
           if (entries.length > 0) {
             const [firstKey, firstVal] = entries[0];
-            lines.push(`${prefix}  - ${firstKey}: ${firstVal}`);
+            lines.push(`${prefix}  - ${firstKey}: ${yamlSafeString(firstVal)}`);
             for (let i = 1; i < entries.length; i++) {
               const [k, v] = entries[i];
               if (Array.isArray(v)) {
                 lines.push(`${prefix}    ${k}:`);
                 for (const arrItem of v) {
-                  lines.push(`${prefix}      - ${arrItem}`);
+                  lines.push(`${prefix}      - ${yamlSafeString(arrItem)}`);
                 }
               } else {
-                lines.push(`${prefix}    ${k}: ${v}`);
+                lines.push(`${prefix}    ${k}: ${yamlSafeString(v)}`);
               }
             }
           }
         } else {
-          lines.push(`${prefix}  - ${item}`);
+          lines.push(`${prefix}  - ${yamlSafeString(item)}`);
         }
       }
       return;
@@ -453,7 +478,7 @@ function serializePreferencesToFrontmatter(prefs: Record<string, unknown>): stri
       return;
     }
 
-    lines.push(`${prefix}${key}: ${value}`);
+    lines.push(`${prefix}${key}: ${yamlSafeString(value)}`);
   }
 
   // Ordered keys for consistent output
