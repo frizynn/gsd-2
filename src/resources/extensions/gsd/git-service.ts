@@ -44,6 +44,26 @@ export interface MergeSliceResult {
   deletedBranch: boolean;
 }
 
+/**
+ * Thrown when a slice merge hits code conflicts in non-.gsd files.
+ * The working tree is left in a conflicted state (no reset) so the
+ * caller can dispatch a fix-merge session to resolve it.
+ */
+export class MergeConflictError extends Error {
+  constructor(
+    public readonly conflictedFiles: string[],
+    public readonly strategy: "squash" | "merge",
+    public readonly branch: string,
+    public readonly mainBranch: string,
+  ) {
+    super(
+      `${strategy === "merge" ? "Merge" : "Squash-merge"} of "${branch}" into "${mainBranch}" ` +
+      `failed with conflicts in ${conflictedFiles.length} non-.gsd file(s): ${conflictedFiles.join(", ")}`,
+    );
+    this.name = "MergeConflictError";
+  }
+}
+
 export interface PreMergeCheckResult {
   passed: boolean;
   skipped?: boolean;
@@ -696,15 +716,9 @@ export class GitServiceImpl {
           this.git(["add", "-A"], { allowFailure: true });
           // Don't throw — let the merge proceed
         } else {
-          // Non-.gsd/ conflicts: reset and throw as before
-          this.git(["reset", "--hard", "HEAD"], { allowFailure: true });
-          const msg = mergeError instanceof Error ? mergeError.message : String(mergeError);
-          throw new Error(
-            `${strategy === "merge" ? "Merge" : "Squash-merge"} of "${branch}" into "${mainBranch}" failed with conflicts in non-.gsd/ files. ` +
-            `Working tree has been reset to a clean state. ` +
-            `Resolve manually: git checkout ${mainBranch} && git merge ${strategy === "merge" ? "--no-ff" : "--squash"} ${branch}\n` +
-            `Original error: ${msg}`,
-          );
+          // Non-.gsd/ conflicts: leave working tree in conflicted state and throw
+          // MergeConflictError so the caller can dispatch a fix-merge session.
+          throw new MergeConflictError(conflictedFiles, strategy, branch, mainBranch);
         }
       } else {
         // No conflicted files detected but merge still failed — reset and throw
