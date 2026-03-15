@@ -18,6 +18,7 @@ The GSD extension is fully functional with:
 - Proactive secret management: planning prompts forecast secrets, manifests persist them, auto-mode collects them before first dispatch
 - Browser-tools extension with 47 registered tools covering navigation, interaction, inspection, verification, tracing, debugging, form intelligence (browser_analyze_form, browser_fill_form), and intent-ranked retrieval and semantic actions (browser_find_best, browser_act)
 - Browser-tools `core.js` with shared utilities for action timeline, page registry, state diffing, assertions, fingerprinting
+- Worktree-isolated git architecture: auto-worktree per milestone, --no-ff slice merges, milestone squash to main, preference-gated isolation modes, self-healing git repair, doctor git health checks, full e2e test coverage
 - Auto-worktree lifecycle: `auto-worktree.ts` module creates isolated worktrees per milestone (`milestone/<MID>` branches), wired into auto.ts startAuto/resume/stop with split-brain prevention
 - Branch-per-slice git model with squash merge to main (being superseded by worktree-isolated model in M003)
 

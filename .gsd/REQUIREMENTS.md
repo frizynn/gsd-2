@@ -138,14 +138,13 @@ This file is the explicit capability and coverage contract for the project.
 
 ### R041 — Test coverage for worktree-isolated flow
 - Class: quality-attribute
-- Status: active
+- Status: validated
 - Description: Test suite covers: auto-worktree create/teardown, `--no-ff` slice merge within worktree, milestone squash to main, preference switching between isolation modes, self-heal scenarios, doctor git checks. All existing git tests continue passing.
 - Why it matters: The git system is the most bug-prone part of GSD. Tests prevent regressions.
 - Source: inferred
 - Primary owning slice: M003/S07
 - Supporting slices: all M003 slices
-- Validation: unmapped
-- Notes: Must test both worktree and branch isolation modes.
+- Validation: worktree-e2e.test.ts — 20 assertions across 5 groups (lifecycle, preference gating, merge mode, self-heal, doctor). 291 unit tests pass with zero regressions.
 
 ## Validated
 
@@ -538,16 +537,16 @@ This file is the explicit capability and coverage contract for the project.
 | R038 | continuity | active | M003/S04 | none | unmapped |
 | R039 | integration | active | M003/S01 | none | unmapped |
 | R040 | operability | validated | M003/S06 | M003/S05 | 4 DoctorIssueCode values, 6 integration tests (17 assertions) in doctor-git.test.ts |
-| R041 | quality-attribute | active | M003/S07 | all M003 | unmapped |
+| R041 | quality-attribute | validated | M003/S07 | all M003 | worktree-e2e.test.ts 20 assertions, 291 unit tests zero regressions |
 | R042 | core-capability | deferred | none | none | unmapped |
 | R043 | quality-attribute | deferred | none | none | unmapped |
 | R044 | anti-feature | out-of-scope | none | none | n/a |
 
 ## Coverage Summary
 
-- Active requirements: 10
-- Mapped to slices: 10
-- Validated: 25
+- Active requirements: 9
+- Mapped to slices: 9
+- Validated: 26
 - Deferred: 5
 - Out of scope: 4
 - Unmapped active requirements: 0

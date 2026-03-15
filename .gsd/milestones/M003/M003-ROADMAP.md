@@ -71,7 +71,7 @@ This milestone is complete only when all are true:
 - [x] **S06: Doctor + cleanup + code simplification** `risk:low` `depends:[S01,S02,S03,S05]`
   > After this: `/gsd doctor` detects orphaned auto-worktrees, stale milestone branches, corrupt merge state (MERGE_HEAD/SQUASH_MSG), and tracked runtime files — and fixes them. Dead `.gsd/` conflict resolution code removed from worktree-mode paths in git-service.ts. Verified via doctor test cases.
 
-- [ ] **S07: Test suite for worktree-isolated flow** `risk:low` `depends:[S01,S02,S03,S04,S05,S06]`
+- [x] **S07: Test suite for worktree-isolated flow** `risk:low` `depends:[S01,S02,S03,S04,S05,S06]`
   > After this: full test coverage for auto-worktree create/teardown, `--no-ff` slice merge, milestone squash, preference switching, self-heal scenarios, doctor checks. All existing git tests still pass. Both isolation modes tested. Verified via `npm run test:unit && npm run test:integration`.
 
 <!--
