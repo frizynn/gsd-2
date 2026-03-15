@@ -6,6 +6,25 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.12.0] - 2026-03-15
+
+### Added
+- **Parallel tool calling** — tools from a single assistant message execute concurrently by default, with sequential mode as opt-in (`toolExecution: "sequential"`) and `beforeToolCall`/`afterToolCall` hooks for interception
+- **Ollama Cloud** as model and web tool provider
+- **Extensible hook system** for auto-mode state machine — post-unit hooks fire after unit completion
+- **Event queue settlement** for parallel tool execution — extension `tool_call`/`tool_result` handlers always see settled agent state
+
+### Changed
+- Inline static templates into prompt builders, eliminating ~44 READ tool calls per milestone
+
+### Fixed
+- Auto-mode dispatch loop when `cachedReaddir` returns stale data after unit writes files
+- Parse and path caches cleared alongside state cache after unit completion
+- `bg_shell` hangs indefinitely when `ready_port` server fails to start — now transitions to error state with stderr context
+- Em dash and slash characters in milestone/slice titles corrupting GSD state management
+- Guided-flow self-heals stale runtime records from crashed auto-mode sessions on wizard start
+- CI smoke test ANSI code stripping
+
 ## [2.11.1] - 2026-03-15
 
 ### Fixed
@@ -564,7 +583,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - License updated to MIT
 
-[Unreleased]: https://github.com/gsd-build/gsd-2/compare/v2.11.0...HEAD
+[Unreleased]: https://github.com/gsd-build/gsd-2/compare/v2.12.0...HEAD
+[2.12.0]: https://github.com/gsd-build/gsd-2/compare/v2.11.1...v2.12.0
+[2.11.1]: https://github.com/gsd-build/gsd-2/compare/v2.11.0...v2.11.1
 [2.11.0]: https://github.com/gsd-build/gsd-2/compare/v2.10.12...v2.11.0
 [2.10.12]: https://github.com/gsd-build/gsd-2/compare/v2.10.11...v2.10.12
 [2.10.11]: https://github.com/gsd-build/gsd-2/compare/v2.10.10...v2.10.11
