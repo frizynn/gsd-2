@@ -88,12 +88,47 @@ export function checkAutoStartAfterDiscuss(): boolean {
     } catch { /* non-fatal — PROJECT.md parsing failure shouldn't block auto-start */ }
   }
 
+  // Gate 4: Discussion manifest process verification (multi-milestone only)
+  // The LLM writes DISCUSSION-MANIFEST.json after each Phase 3 gate decision.
+  // If the manifest exists but gates_completed < total, the LLM hasn't finished
+  // presenting all readiness gates to the user — block auto-start.
+  const manifestPath = join(basePath, ".gsd", "DISCUSSION-MANIFEST.json");
+  if (existsSync(manifestPath)) {
+    try {
+      const manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
+      const total = typeof manifest.total === "number" ? manifest.total : 0;
+      const completed = typeof manifest.gates_completed === "number" ? manifest.gates_completed : 0;
+
+      if (total > 1 && completed < total) {
+        // Discussion not complete — block auto-start until all gates are done
+        return false;
+      }
+
+      // Cross-check manifest milestones against PROJECT.md if available
+      if (projectFile) {
+        const projectContent = readFileSync(projectFile, "utf-8");
+        const projectIds = parseMilestoneSequenceFromProject(projectContent);
+        const manifestIds = Object.keys(manifest.milestones ?? {});
+        const untracked = projectIds.filter(id => !manifestIds.includes(id));
+        if (untracked.length > 0) {
+          ctx.ui.notify(
+            `Discussion manifest missing gates for: ${untracked.join(", ")}`,
+            "warning",
+          );
+        }
+      }
+    } catch { /* malformed manifest — warn but don't block */ }
+  }
+
   // Draft promotion cleanup: if a CONTEXT-DRAFT.md exists alongside the new
   // CONTEXT.md, delete the draft — it's been consumed by the discussion.
   try {
     const draftFile = resolveMilestoneFile(basePath, milestoneId, "CONTEXT-DRAFT");
     if (draftFile) unlinkSync(draftFile);
   } catch { /* non-fatal — stale draft doesn't break anything, CONTEXT.md wins */ }
+
+  // Cleanup: remove discussion manifest after auto-start (only needed during discussion)
+  try { unlinkSync(manifestPath); } catch { /* may not exist for single-milestone */ }
 
   pendingAutoStart = null;
   startAuto(ctx, pi, basePath, false, { step }).catch(() => {});
