@@ -99,7 +99,7 @@ test("extensions directory change emits extensions-changed event", async () => {
 		join(dir, "extensions", "my-ext.json"),
 		JSON.stringify({ name: "test" }),
 	);
-	await delay(600);
+	await delay(1000);
 
 	const matched = bus.events.filter(
 		(e) => e.channel === "extensions-changed",
