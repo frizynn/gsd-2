@@ -786,6 +786,9 @@ export async function startAuto(
       pausedSessionFile = null;
     }
 
+    // Write lock on resume so cross-process status detection works (#723).
+    writeLock(lockBase(), "resuming", currentMilestoneId ?? "unknown", completedUnits.length);
+
     await dispatchNextUnit(ctx, pi);
     return;
   }
@@ -1120,6 +1123,11 @@ export async function startAuto(
     ? `Will loop through ${pendingCount} milestones.`
     : "Will loop until milestone complete.";
   ctx.ui.notify(`${modeLabel} started. ${scopeMsg}`, "info");
+
+  // Write initial lock file immediately so cross-process status detection
+  // works even before the first unit is dispatched (#723).
+  // The lock is updated with unit-specific info on each dispatch and cleared on stop.
+  writeLock(lockBase(), "starting", currentMilestoneId ?? "unknown", 0);
 
   // Secrets collection gate — collect pending secrets before first dispatch
   const mid = state.activeMilestone!.id;
@@ -1573,7 +1581,7 @@ export async function handleAgentEnd(
               return;
             }
             const sessionFile = ctx.sessionManager.getSessionFile();
-            writeLock(basePath, triageUnitType, triageUnitId, completedUnits.length, sessionFile);
+            writeLock(lockBase(), triageUnitType, triageUnitId, completedUnits.length, sessionFile);
 
             // Start unit timeout for triage (use same supervisor config as hooks)
             clearUnitTimeout();
