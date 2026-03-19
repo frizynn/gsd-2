@@ -108,6 +108,11 @@ import {
 	theme,
 } from "./theme/theme.js";
 
+/** Extract error message from an unknown caught value */
+function getErrorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
+}
+
 /** Interface for components that can be expanded/collapsed */
 interface Expandable {
 	setExpanded(expanded: boolean): void;
@@ -1259,7 +1264,7 @@ export class InteractiveMode {
 				if (matchesKey(data, shortcutStr as KeyId)) {
 					// Run handler async, don't block input
 					Promise.resolve(shortcut.handler(createContext())).catch((err) => {
-						this.showError(`Shortcut handler error: ${err instanceof Error ? err.message : String(err)}`);
+						this.showError(`Shortcut handler error: ${getErrorMessage(err)}`);
 					});
 					return true;
 				}
@@ -2983,7 +2988,7 @@ export class InteractiveMode {
 				this.showStatus(`Switched to ${result.model.name || result.model.id}${thinkingStr}`);
 			}
 		} catch (error) {
-			this.showError(error instanceof Error ? error.message : String(error));
+			this.showError(getErrorMessage(error));
 		}
 	}
 
@@ -3219,9 +3224,7 @@ export class InteractiveMode {
 			this.compactionQueuedMessages = queuedMessages;
 			this.updatePendingMessagesDisplay();
 			this.showError(
-				`Failed to send queued message${queuedMessages.length > 1 ? "s" : ""}: ${
-					error instanceof Error ? error.message : String(error)
-				}`,
+				`Failed to send queued message${queuedMessages.length > 1 ? "s" : ""}: ${getErrorMessage(error)}`,
 			);
 		};
 
@@ -3466,7 +3469,7 @@ export class InteractiveMode {
 				this.showStatus(`Model: ${model.id}`);
 				this.checkDaxnutsEasterEgg(model);
 			} catch (error) {
-				this.showError(error instanceof Error ? error.message : String(error));
+				this.showError(getErrorMessage(error));
 			}
 			return;
 		}
@@ -3539,7 +3542,7 @@ export class InteractiveMode {
 						this.checkDaxnutsEasterEgg(model);
 					} catch (error) {
 						done();
-						this.showError(error instanceof Error ? error.message : String(error));
+						this.showError(getErrorMessage(error));
 					}
 				},
 				() => {
@@ -3809,7 +3812,7 @@ export class InteractiveMode {
 						}
 						this.showStatus("Navigated to selected point");
 					} catch (error) {
-						this.showError(error instanceof Error ? error.message : String(error));
+						this.showError(getErrorMessage(error));
 					} finally {
 						if (summaryLoader) {
 							summaryLoader.stop();
@@ -3918,7 +3921,7 @@ export class InteractiveMode {
 							this.showStatus(`Discovered ${result?.models.length ?? 0} models from ${provider}`);
 						}
 					} catch (error) {
-						this.showError(error instanceof Error ? error.message : String(error));
+						this.showError(getErrorMessage(error));
 					}
 					done();
 					this.ui.requestRender();
@@ -3981,7 +3984,7 @@ export class InteractiveMode {
 
 							this.showStatus(`Logged out of ${providerName}`);
 						} catch (error: unknown) {
-							this.showError(`Logout failed: ${error instanceof Error ? error.message : String(error)}`);
+							this.showError(`Logout failed: ${getErrorMessage(error)}`);
 						}
 					}
 					};
@@ -4109,7 +4112,7 @@ export class InteractiveMode {
 				manualCodeReject = undefined;
 				manualCodeResolve = undefined;
 			}
-			const errorMsg = error instanceof Error ? error.message : String(error);
+			const errorMsg = getErrorMessage(error);
 			if (errorMsg !== "Login cancelled" && !errorMsg.includes("Superseded") && !errorMsg.includes("disposed")) {
 				this.showError(`Failed to login to ${providerName}: ${errorMsg}`);
 			}
@@ -4187,7 +4190,7 @@ export class InteractiveMode {
 			this.showStatus("Reloaded extensions, skills, prompts, themes");
 		} catch (error) {
 			dismissLoader(previousEditor as Component);
-			this.showError(`Reload failed: ${error instanceof Error ? error.message : String(error)}`);
+			this.showError(`Reload failed: ${getErrorMessage(error)}`);
 		}
 	}
 
@@ -4308,7 +4311,7 @@ export class InteractiveMode {
 			copyToClipboard(text);
 			this.showStatus("Copied last agent message to clipboard");
 		} catch (error) {
-			this.showError(error instanceof Error ? error.message : String(error));
+			this.showError(getErrorMessage(error));
 		}
 	}
 
@@ -4749,7 +4752,7 @@ export class InteractiveMode {
 
 			this.footer.invalidate();
 		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
+			const message = getErrorMessage(error);
 			if (message === "Compaction cancelled" || (error instanceof Error && error.name === "AbortError")) {
 				this.showError("Compaction cancelled");
 			} else {

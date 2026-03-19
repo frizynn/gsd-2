@@ -55,6 +55,27 @@ function normalizeDisplayText(text: string): string {
 	return text.replace(/\r/g, "");
 }
 
+/**
+ * Build a themed `[Truncated: ...]` warning string from custom warnings and an optional
+ * byte-limit truncation flag. Used by ls, find, and grep tool renderers.
+ *
+ * `prefixWarnings` appear before the byte-limit message, `suffixWarnings` after it.
+ * Returns empty string if there are no warnings.
+ */
+function formatTruncationWarning(
+	prefixWarnings: string[],
+	truncation: { truncated?: boolean; maxBytes?: number } | undefined,
+	suffixWarnings: string[] = [],
+): string {
+	const warnings = [...prefixWarnings];
+	if (truncation?.truncated) {
+		warnings.push(`${formatSize(truncation.maxBytes ?? DEFAULT_MAX_BYTES)} limit`);
+	}
+	warnings.push(...suffixWarnings);
+	if (warnings.length === 0) return "";
+	return theme.fg("warning", `[Truncated: ${warnings.join(", ")}]`);
+}
+
 /** Safely coerce value to string for display. Returns null if invalid type. */
 function str(value: unknown): string | null {
 	if (typeof value === "string") return value;
@@ -799,16 +820,12 @@ export class ToolExecutionComponent extends Container {
 				}
 
 				const entryLimit = this.result.details?.entryLimitReached;
-				const truncation = this.result.details?.truncation;
-				if (entryLimit || truncation?.truncated) {
-					const warnings: string[] = [];
-					if (entryLimit) {
-						warnings.push(`${entryLimit} entries limit`);
-					}
-					if (truncation?.truncated) {
-						warnings.push(`${formatSize(truncation.maxBytes ?? DEFAULT_MAX_BYTES)} limit`);
-					}
-					text += `\n${theme.fg("warning", `[Truncated: ${warnings.join(", ")}]`)}`;
+				const truncationWarning = formatTruncationWarning(
+					entryLimit ? [`${entryLimit} entries limit`] : [],
+					this.result.details?.truncation,
+				);
+				if (truncationWarning) {
+					text += `\n${truncationWarning}`;
 				}
 			}
 		} else if (this.toolName === "find") {
@@ -841,16 +858,12 @@ export class ToolExecutionComponent extends Container {
 				}
 
 				const resultLimit = this.result.details?.resultLimitReached;
-				const truncation = this.result.details?.truncation;
-				if (resultLimit || truncation?.truncated) {
-					const warnings: string[] = [];
-					if (resultLimit) {
-						warnings.push(`${resultLimit} results limit`);
-					}
-					if (truncation?.truncated) {
-						warnings.push(`${formatSize(truncation.maxBytes ?? DEFAULT_MAX_BYTES)} limit`);
-					}
-					text += `\n${theme.fg("warning", `[Truncated: ${warnings.join(", ")}]`)}`;
+				const truncationWarning = formatTruncationWarning(
+					resultLimit ? [`${resultLimit} results limit`] : [],
+					this.result.details?.truncation,
+				);
+				if (truncationWarning) {
+					text += `\n${truncationWarning}`;
 				}
 			}
 		} else if (this.toolName === "grep") {
@@ -886,21 +899,21 @@ export class ToolExecutionComponent extends Container {
 					}
 				}
 
-				const matchLimit = this.result.details?.matchLimitReached;
-				const truncation = this.result.details?.truncation;
-				const linesTruncated = this.result.details?.linesTruncated;
-				if (matchLimit || truncation?.truncated || linesTruncated) {
-					const warnings: string[] = [];
-					if (matchLimit) {
-						warnings.push(`${matchLimit} matches limit`);
-					}
-					if (truncation?.truncated) {
-						warnings.push(`${formatSize(truncation.maxBytes ?? DEFAULT_MAX_BYTES)} limit`);
-					}
-					if (linesTruncated) {
-						warnings.push("some lines truncated");
-					}
-					text += `\n${theme.fg("warning", `[Truncated: ${warnings.join(", ")}]`)}`;
+				const customWarnings: string[] = [];
+				if (this.result.details?.matchLimitReached) {
+					customWarnings.push(`${this.result.details.matchLimitReached} matches limit`);
+				}
+				const suffixWarnings: string[] = [];
+				if (this.result.details?.linesTruncated) {
+					suffixWarnings.push("some lines truncated");
+				}
+				const truncationWarning = formatTruncationWarning(
+					customWarnings,
+					this.result.details?.truncation,
+					suffixWarnings,
+				);
+				if (truncationWarning) {
+					text += `\n${truncationWarning}`;
 				}
 			}
 		} else if (this.toolName === "web_search") {
