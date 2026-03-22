@@ -37,6 +37,8 @@ export interface SkillPack {
   matchFiles?: string[];
   /** Trigger when Xcode project targets one of these platforms */
   matchXcodePlatforms?: XcodePlatform[];
+  /** Always include this pack in brownfield recommendations */
+  matchAlways?: boolean;
 }
 
 // ─── Curated Catalog ──────────────────────────────────────────────────────────
@@ -169,7 +171,7 @@ export const SKILL_CATALOG: SkillPack[] = [
   // ── React / Next.js ───────────────────────────────────────────────────────
   {
     label: "React & Web Frontend",
-    description: "React best practices, composition patterns, shadcn/ui components",
+    description: "React best practices and composition patterns",
     repo: "vercel-labs/agent-skills",
     skills: [
       "vercel-react-best-practices",
@@ -187,10 +189,10 @@ export const SKILL_CATALOG: SkillPack[] = [
   // ── React Native ──────────────────────────────────────────────────────────
   {
     label: "React Native",
-    description: "React Native patterns and cross-platform mobile development",
+    description: "React Native and Expo best practices for performant mobile apps",
     repo: "vercel-labs/agent-skills",
     skills: ["vercel-react-native-skills"],
-    matchLanguages: ["javascript/typescript"],
+    matchFiles: ["metro.config.js", "metro.config.ts", "react-native.config.js"],
   },
   // ── General Frontend ──────────────────────────────────────────────────────
   {
@@ -227,24 +229,60 @@ export const SKILL_CATALOG: SkillPack[] = [
     matchLanguages: ["go"],
     matchFiles: ["go.mod"],
   },
+  // ── Cloud Platforms ────────────────────────────────────────────────────────
+  {
+    label: "Firebase",
+    description: "Firebase setup, auth, Firestore, hosting, and AI Logic",
+    repo: "firebase/agent-skills",
+    skills: [
+      "firebase-basics",
+      "firebase-auth-basics",
+      "firebase-firestore-basics",
+      "firebase-hosting-basics",
+      "firebase-ai-logic",
+    ],
+    matchFiles: ["firebase.json"],
+  },
+  {
+    label: "Azure",
+    description: "Azure deployment, AI services, storage, cost optimization, and diagnostics",
+    repo: "microsoft/github-copilot-for-azure",
+    skills: [
+      "azure-deploy",
+      "azure-ai",
+      "azure-storage",
+      "azure-cost-optimization",
+      "azure-diagnostics",
+    ],
+  },
+  {
+    label: "AWS",
+    description: "AWS deployment, Lambda, and serverless patterns",
+    repo: "awslabs/agent-plugins",
+    skills: ["deploy", "aws-lambda", "aws-serverless-deployment"],
+    matchFiles: ["cdk.json", "samconfig.toml", "serverless.yml"],
+  },
   // ── Essential (all projects) ────────────────────────────────────────────
   {
     label: "Skill Discovery",
     description: "Find and install new agent skills from the ecosystem",
     repo: "vercel-labs/skills",
     skills: ["find-skills"],
+    matchAlways: true,
   },
   {
     label: "Skill Authoring",
     description: "Create, audit, and refine SKILL.md files",
     repo: "anthropics/skills",
     skills: ["skill-creator"],
+    matchAlways: true,
   },
   {
     label: "Browser Automation",
     description: "Browser automation for web scraping, testing, and interaction",
     repo: "vercel-labs/agent-browser",
     skills: ["agent-browser"],
+    matchAlways: true,
   },
   // ── General Tooling ───────────────────────────────────────────────────────
   {
@@ -252,6 +290,7 @@ export const SKILL_CATALOG: SkillPack[] = [
     description: "PDF, DOCX, XLSX, PPTX creation and manipulation",
     repo: "anthropics/skills",
     skills: ["pdf", "docx", "xlsx", "pptx"],
+    matchAlways: true,
   },
 ];
 
@@ -325,6 +364,24 @@ export const GREENFIELD_STACKS: Array<{
     packs: ["Go"],
   },
   {
+    id: "firebase",
+    label: "Firebase",
+    description: "Firebase backend — auth, Firestore, hosting, AI",
+    packs: ["Firebase"],
+  },
+  {
+    id: "aws",
+    label: "AWS",
+    description: "AWS deployment, Lambda, serverless",
+    packs: ["AWS"],
+  },
+  {
+    id: "azure",
+    label: "Azure",
+    description: "Azure deployment, AI, storage, diagnostics",
+    packs: ["Azure"],
+  },
+  {
     id: "other",
     label: "Other / Skip",
     description: "Install skills later with npx skills add",
@@ -365,6 +422,11 @@ export function matchPacksForProject(signals: ProjectSignals): SkillPack[] {
       const hasMatch = pack.matchXcodePlatforms.some((p) => signals.xcodePlatforms.includes(p));
       if (hasMatch) matched.add(pack);
     }
+
+    // Always-include packs (essentials)
+    if (pack.matchAlways) {
+      matched.add(pack);
+    }
   }
 
   return [...matched];
@@ -380,6 +442,7 @@ export function matchPacksForProject(signals: ProjectSignals): SkillPack[] {
  */
 export function installSkillPack(pack: SkillPack): Promise<boolean> {
   return new Promise((resolve) => {
+    // --yes = npx auto-install, -y = skills.sh non-interactive
     const args = ["--yes", "skills", "add", pack.repo];
 
     for (const skill of pack.skills) {
@@ -414,6 +477,7 @@ export async function installPacksBatched(
   for (const [repo, { skills, labels }] of byRepo) {
     onProgress?.(labels.join(", "));
     const ok = await new Promise<boolean>((resolve) => {
+      // --yes = npx auto-install, -y = skills.sh non-interactive
       const args = ["--yes", "skills", "add", repo];
       for (const skill of skills) {
         args.push("--skill", skill);

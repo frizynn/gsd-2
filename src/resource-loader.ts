@@ -1,7 +1,7 @@
 import { DefaultResourceLoader } from '@gsd/pi-coding-agent'
 import { createHash } from 'node:crypto'
 import { homedir } from 'node:os'
-import { chmodSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, readdirSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, openSync, closeSync, readFileSync, readlinkSync, readdirSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { compareSemver } from './update-check.js'
@@ -437,7 +437,16 @@ function migrateSkillsToEcosystemDir(agentDir: string): void {
   const markerPath = join(legacyDir, '.migrated-to-agents')
 
   // Already migrated or no legacy dir — nothing to do
-  if (!existsSync(legacyDir) || existsSync(markerPath)) return
+  if (!existsSync(legacyDir)) return
+
+  // Atomic marker check — 'wx' fails if file already exists, preventing races
+  // when two GSD processes start simultaneously.
+  let markerFd: number
+  try {
+    markerFd = openSync(markerPath, 'wx')
+  } catch {
+    return // marker already exists (another process won the race, or already migrated)
+  }
 
   const ecosystemDir = join(homedir(), '.agents', 'skills')
   mkdirSync(ecosystemDir, { recursive: true })
@@ -446,25 +455,49 @@ function migrateSkillsToEcosystemDir(agentDir: string): void {
     const entries = readdirSync(legacyDir, { withFileTypes: true })
     let migrated = 0
     for (const entry of entries) {
-      if (!entry.isDirectory()) continue
-      const skillMd = join(legacyDir, entry.name, 'SKILL.md')
+      // Handle both real directories and symlinks pointing to directories
+      const isDir = entry.isDirectory()
+      const isSymlink = entry.isSymbolicLink()
+      if (!isDir && !isSymlink) continue
+
+      const sourcePath = join(legacyDir, entry.name)
+
+      // For symlinks, verify the target is a directory
+      if (isSymlink) {
+        try {
+          const stat = statSync(sourcePath)
+          if (!stat.isDirectory()) continue
+        } catch {
+          continue // broken symlink — skip
+        }
+      }
+
+      const skillMd = join(sourcePath, 'SKILL.md')
       if (!existsSync(skillMd)) continue
 
       const target = join(ecosystemDir, entry.name)
       if (existsSync(target)) continue // ecosystem version wins
 
       try {
-        cpSync(join(legacyDir, entry.name), target, { recursive: true })
+        if (isSymlink) {
+          // Recreate the symlink in the ecosystem directory
+          const linkTarget = readlinkSync(sourcePath)
+          symlinkSync(linkTarget, target)
+        } else {
+          cpSync(sourcePath, target, { recursive: true })
+        }
         migrated++
       } catch {
         // non-fatal — skip this skill
       }
     }
 
-    // Drop marker whether or not anything was copied, so we don't re-scan
-    try { writeFileSync(markerPath, `Migrated ${migrated} skill(s) to ${ecosystemDir} on ${new Date().toISOString()}\n`) } catch { /* non-fatal */ }
+    // Write migration info to the marker
+    try { writeFileSync(markerFd, `Migrated ${migrated} skill(s) to ${ecosystemDir} on ${new Date().toISOString()}\n`) } catch { /* non-fatal */ }
   } catch {
     // can't read legacy dir — skip silently
+  } finally {
+    try { closeSync(markerFd) } catch { /* non-fatal */ }
   }
 }
 

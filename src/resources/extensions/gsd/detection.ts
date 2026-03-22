@@ -6,7 +6,7 @@
  * flow to show when entering a project directory.
  */
 
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, openSync, readSync, closeSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { gsdRoot } from "./paths.js";
@@ -92,6 +92,15 @@ export const PROJECT_FILES = [
   "mix.exs",
   "deno.json",
   "deno.jsonc",
+  // Cloud platform config files
+  "firebase.json",
+  "cdk.json",
+  "samconfig.toml",
+  "serverless.yml",
+  // React Native markers
+  "metro.config.js",
+  "metro.config.ts",
+  "react-native.config.js",
 ] as const;
 
 const LANGUAGE_MAP: Record<string, string> = {
@@ -272,6 +281,12 @@ export function detectProjectSignals(basePath: string): ProjectSignals {
   // Xcode platform detection — parse SDKROOT from project.pbxproj
   const xcodePlatforms = detectXcodePlatforms(basePath);
 
+  // Set primaryLanguage to swift when an Xcode project is found but no
+  // Package.swift was detected (CocoaPods or SPM-less projects).
+  if (!primaryLanguage && xcodePlatforms.length > 0) {
+    primaryLanguage = "swift";
+  }
+
   // Monorepo detection
   let isMonorepo = false;
   for (const marker of MONOREPO_MARKERS) {
@@ -337,36 +352,81 @@ const SDKROOT_MAP: Record<string, XcodePlatform> = {
   xrsimulator: "xros",
 };
 
+/** Regex for SUPPORTED_PLATFORMS — fallback when SDKROOT = auto (Xcode 15+). */
+const SUPPORTED_PLATFORMS_RE = /SUPPORTED_PLATFORMS\s*=\s*"([^"]+)"/gi;
+
+/** Read at most `maxBytes` from a file without loading the full file into memory. */
+function readBounded(filePath: string, maxBytes: number): string {
+  const buf = Buffer.alloc(maxBytes);
+  const fd = openSync(filePath, "r");
+  try {
+    const bytesRead = readSync(fd, buf, 0, maxBytes, 0);
+    return buf.toString("utf-8", 0, bytesRead);
+  } finally {
+    closeSync(fd);
+  }
+}
+
+/** Common subdirectories where .xcodeproj may live in monorepos / standard layouts. */
+const XCODE_SUBDIRS = ["ios", "macos", "app", "apps"] as const;
+
 /**
  * Scan *.xcodeproj directories for project.pbxproj and extract SDKROOT values.
  * Returns deduplicated, canonical platform list (e.g. ["iphoneos"]).
  *
  * Reading the pbxproj is a lightweight regex scan — no full plist parsing needed.
  * We read at most 256 KB per file to keep detection fast.
+ * Searches both the project root and common subdirectories (ios/, macos/, app/).
  */
 function detectXcodePlatforms(basePath: string): XcodePlatform[] {
   const platforms = new Set<XcodePlatform>();
-  try {
-    const entries = readdirSync(basePath, { withFileTypes: true });
-    for (const entry of entries) {
-      if (!entry.isDirectory() || !entry.name.endsWith(".xcodeproj")) continue;
-      const pbxprojPath = join(basePath, entry.name, "project.pbxproj");
-      try {
-        // Read a bounded slice — pbxproj files can be large in huge projects
-        const content = readFileSync(pbxprojPath, { encoding: "utf-8", flag: "r" }).slice(0, 256 * 1024);
-        // Match SDKROOT = <value>; — both quoted and unquoted forms
-        const re = /SDKROOT\s*=\s*"?([a-z]+)"?\s*;/gi;
-        let m: RegExpExecArray | null;
-        while ((m = re.exec(content)) !== null) {
-          const canonical = SDKROOT_MAP[m[1].toLowerCase()];
-          if (canonical) platforms.add(canonical);
+
+  // Directories to scan: project root + common subdirs
+  const dirsToScan = [basePath];
+  for (const sub of XCODE_SUBDIRS) {
+    const subPath = join(basePath, sub);
+    if (existsSync(subPath)) dirsToScan.push(subPath);
+  }
+
+  for (const dir of dirsToScan) {
+    try {
+      const entries = readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory() || !entry.name.endsWith(".xcodeproj")) continue;
+        const pbxprojPath = join(dir, entry.name, "project.pbxproj");
+        try {
+          const content = readBounded(pbxprojPath, 256 * 1024);
+          // Match SDKROOT = <value>; — both quoted and unquoted forms
+          const sdkRe = /SDKROOT\s*=\s*"?([a-z]+)"?\s*;/gi;
+          let m: RegExpExecArray | null;
+          let foundExplicit = false;
+          while ((m = sdkRe.exec(content)) !== null) {
+            const val = m[1].toLowerCase();
+            if (val === "auto") continue; // handled below via SUPPORTED_PLATFORMS
+            const canonical = SDKROOT_MAP[val];
+            if (canonical) {
+              platforms.add(canonical);
+              foundExplicit = true;
+            }
+          }
+          // Xcode 15+ defaults SDKROOT to "auto"; fall back to SUPPORTED_PLATFORMS
+          if (!foundExplicit) {
+            let sp: RegExpExecArray | null;
+            while ((sp = SUPPORTED_PLATFORMS_RE.exec(content)) !== null) {
+              for (const tok of sp[1].split(/\s+/)) {
+                const canonical = SDKROOT_MAP[tok.toLowerCase()];
+                if (canonical) platforms.add(canonical);
+              }
+            }
+            SUPPORTED_PLATFORMS_RE.lastIndex = 0;
+          }
+        } catch {
+          // unreadable pbxproj — skip
         }
-      } catch {
-        // unreadable pbxproj — skip
       }
+    } catch {
+      // unreadable directory
     }
-  } catch {
-    // unreadable directory
   }
   return [...platforms];
 }
