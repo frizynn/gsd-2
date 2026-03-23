@@ -129,10 +129,16 @@ function getJitiOptions() {
 }
 
 const _moduleImporters = new Map<string, ReturnType<typeof createJiti>>();
+const MAX_MODULE_IMPORTERS = 50;
 
 function getModuleImporter(parentModuleUrl: string) {
 	let importer = _moduleImporters.get(parentModuleUrl);
 	if (!importer) {
+		// Evict oldest entry if cache is at capacity
+		if (_moduleImporters.size >= MAX_MODULE_IMPORTERS) {
+			const oldestKey = _moduleImporters.keys().next().value;
+			if (oldestKey) _moduleImporters.delete(oldestKey);
+		}
 		importer = createJiti(parentModuleUrl, {
 			moduleCache: true,
 			...getJitiOptions(),

@@ -374,6 +374,17 @@ export class AgentSession {
 		this._retryPromise = new Promise((resolve) => {
 			this._retryResolve = resolve;
 		});
+
+		// Safety timeout: if _handleRetryableError is never called (e.g.
+		// _lastAssistantMessage is undefined when _processAgentEvent runs),
+		// the promise would hang forever. Resolve after 2 minutes as a
+		// defensive fallback so waitForRetry() never blocks indefinitely.
+		const safetyTimeout = setTimeout(() => {
+			this._resolveRetry();
+		}, 120_000);
+
+		// Clear the timeout if the promise resolves normally
+		this._retryPromise.then(() => clearTimeout(safetyTimeout));
 	}
 
 	private _findLastAssistantInMessages(messages: AgentMessage[]): AssistantMessage | undefined {
@@ -469,6 +480,13 @@ export class AgentSession {
 			}
 
 			await this._checkCompaction(msg);
+		}
+
+		// Ensure retry promise is resolved even if the retry path above was
+		// skipped (e.g. _lastAssistantMessage was undefined or the error was
+		// no longer classified as retryable by _processAgentEvent).
+		if (event.type === "agent_end" && this._retryPromise) {
+			this._resolveRetry();
 		}
 	}
 

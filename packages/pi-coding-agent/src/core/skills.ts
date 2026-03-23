@@ -417,10 +417,8 @@ export function loadSkills(options: LoadSkillsOptions = {}): LoadSkillsResult {
 	};
 
 	const getSource = (resolvedPath: string): "user" | "project" | "path" => {
-		if (!includeDefaults) {
-			if (isUnderPath(resolvedPath, userSkillsDir)) return "user";
-			if (isUnderPath(resolvedPath, projectSkillsDir)) return "project";
-		}
+		if (isUnderPath(resolvedPath, userSkillsDir)) return "user";
+		if (isUnderPath(resolvedPath, projectSkillsDir)) return "project";
 		return "path";
 	};
 

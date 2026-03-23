@@ -241,13 +241,11 @@ export function loadPromptTemplates(options: LoadPromptTemplatesOptions = {}): P
 	};
 
 	const getSourceInfo = (resolvedPath: string): { source: string; label: string } => {
-		if (!includeDefaults) {
-			if (isUnderPath(resolvedPath, userPromptsDir)) {
-				return { source: "user", label: "(user)" };
-			}
-			if (isUnderPath(resolvedPath, projectPromptsDir)) {
-				return { source: "project", label: "(project)" };
-			}
+		if (isUnderPath(resolvedPath, userPromptsDir)) {
+			return { source: "user", label: "(user)" };
+		}
+		if (isUnderPath(resolvedPath, projectPromptsDir)) {
+			return { source: "project", label: "(project)" };
 		}
 		return { source: "path", label: buildPathSourceLabel(resolvedPath) };
 	};
