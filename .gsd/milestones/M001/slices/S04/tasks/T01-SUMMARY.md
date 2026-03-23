@@ -10,6 +10,10 @@ key_files:
 key_decisions:
   - Added sequence column to initial CREATE TABLE DDL in addition to migration block — required for fresh databases that skip migrations
   - Used INTEGER DEFAULT 0 (not NOT NULL) for sequence column to keep it nullable-safe and backward compatible
+observability_surfaces:
+  - "SQLite slices.sequence and tasks.sequence columns — inspect via SELECT id, sequence FROM slices ORDER BY sequence, id"
+  - "SCHEMA_VERSION=9 — verify via PRAGMA user_version on the DB file"
+  - "schema-v9-sequence.test.ts — 7 tests covering migration, ordering, defaults"
 duration: ""
 verification_result: passed
 completed_at: 2026-03-23T16:57:23.834Z
@@ -53,6 +57,12 @@ Added `sequence INTEGER DEFAULT 0` to the initial CREATE TABLE definitions for s
 ## Known Issues
 
 None.
+
+## Diagnostics
+
+- Verify schema version: `node -e "const db=require('better-sqlite3')('path/to/gsd.db'); console.log(db.pragma('user_version'))"` — should return `[{ user_version: 9 }]`
+- Inspect sequence values: `SELECT id, sequence FROM slices WHERE milestone_id='M001' ORDER BY sequence, id` in the SQLite DB
+- Run regression: `node --import ./src/resources/extensions/gsd/tests/resolve-ts.mjs --experimental-strip-types --test src/resources/extensions/gsd/tests/schema-v9-sequence.test.ts`
 
 ## Files Created/Modified
 

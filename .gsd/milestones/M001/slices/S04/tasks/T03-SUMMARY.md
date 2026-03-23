@@ -11,6 +11,11 @@ key_decisions:
   - Used lazy createRequire fallback for all three files (same pattern as T02) — avoids module-level parser imports while keeping fallback path functional when DB is unavailable
   - Kept loadFile in auto-dispatch.ts module imports since it's still used by 15 other rules for non-planning file content (UAT files, context files, etc.) — only parseRoadmap was removed
   - TaskRow.files is already a parsed string[] from the getter (rowToTask), so no JSON.parse needed in parallel-eligibility.ts DB path
+observability_surfaces:
+  - "isDbAvailable() gate in auto-dispatch.ts, auto-verification.ts, parallel-eligibility.ts — stderr diagnostic on fallback"
+  - "auto-dispatch.ts lazyParseRoadmap — createRequire fallback loader with .ts/.js resolution"
+  - "auto-verification.ts lazy loader — createRequire fallback for loadFile + parsePlan"
+  - "parallel-eligibility.ts lazy loader — createRequire fallback for parseRoadmap + parsePlan + loadFile"
 duration: ""
 verification_result: passed
 completed_at: 2026-03-23T17:09:17.905Z
@@ -78,6 +83,12 @@ The task plan said `rg 'parseRoadmap' auto-dispatch.ts` should return zero match
 ## Known Issues
 
 None.
+
+## Diagnostics
+
+- Verify no module-level parser imports: `grep -n '^import.*parseRoadmap\|^import.*parsePlan' src/resources/extensions/gsd/auto-dispatch.ts src/resources/extensions/gsd/auto-verification.ts src/resources/extensions/gsd/parallel-eligibility.ts` — should return no matches
+- Confirm lazy-only references: `grep -n 'parseRoadmap\|parsePlan' src/resources/extensions/gsd/auto-dispatch.ts` — all matches should be inside lazy fallback blocks (lines 19-27)
+- Run regression: `node --import ./src/resources/extensions/gsd/tests/resolve-ts.mjs --experimental-strip-types --test src/resources/extensions/gsd/tests/integration-mixed-milestones.test.ts`
 
 ## Files Created/Modified
 

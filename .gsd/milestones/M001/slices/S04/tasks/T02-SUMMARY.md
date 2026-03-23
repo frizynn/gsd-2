@@ -9,6 +9,10 @@ key_files:
 key_decisions:
   - Used createRequire with try .ts/.js fallback for lazy parser loading instead of dynamic import() — keeps getPriorSliceCompletionBlocker synchronous, avoiding cascading async changes to loop-deps.ts, phases.ts, and all test mocks
   - Kept minimal ROADMAP stub files on disk in tests because findMilestoneIds() reads milestone directories from disk for queue ordering — DB migration of milestone discovery is out of scope for this task
+observability_surfaces:
+  - "dispatch-guard.ts isDbAvailable() gate — stderr diagnostic when DB unavailable and fallback to disk parse"
+  - "dispatch-guard.test.ts — 8 tests covering DB-seeded dispatch blocking/allowing"
+  - "integration-mixed-milestones.test.ts — 54 tests exercising disk-parse fallback path"
 duration: ""
 verification_result: passed
 completed_at: 2026-03-23T17:03:27.608Z
@@ -64,6 +68,12 @@ The task plan suggested removing `readFileSync` import if no longer needed outsi
 ## Known Issues
 
 None.
+
+## Diagnostics
+
+- Verify no module-level parser imports: `grep -n '^import.*parseRoadmapSlices' src/resources/extensions/gsd/dispatch-guard.ts` — should return no matches
+- Test DB path: `node --import ./src/resources/extensions/gsd/tests/resolve-ts.mjs --experimental-strip-types --test src/resources/extensions/gsd/tests/dispatch-guard.test.ts`
+- Test fallback path: `node --import ./src/resources/extensions/gsd/tests/resolve-ts.mjs --experimental-strip-types --test src/resources/extensions/gsd/tests/integration-mixed-milestones.test.ts`
 
 ## Files Created/Modified
 

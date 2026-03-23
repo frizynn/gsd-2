@@ -8,6 +8,9 @@ key_files:
   - .gsd/milestones/M001/slices/S04/tasks/T04-PLAN.md
 key_decisions:
   - Fixed renderRoadmapMarkdown depends serialization from JSON.stringify (quoted) to join-based (unquoted) — required for parser round-trip parity since parseRoadmapSlices doesn't strip quotes from dependency IDs
+observability_surfaces:
+  - "planning-crossval.test.ts — 65 assertions across 3 scenarios (ROADMAP parity, PLAN parity, sequence ordering)"
+  - "Cross-validation pattern follows derive-state-crossval.test.ts established in prior work"
 duration: ""
 verification_result: passed
 completed_at: 2026-03-23T17:15:58.443Z
@@ -61,6 +64,12 @@ Fixed a depends-quoting bug in `renderRoadmapMarkdown()` in `markdown-renderer.t
 ## Known Issues
 
 None.
+
+## Diagnostics
+
+- Run cross-validation tests: `node --import ./src/resources/extensions/gsd/tests/resolve-ts.mjs --experimental-strip-types --test src/resources/extensions/gsd/tests/planning-crossval.test.ts`
+- Verify renderer fix: `grep 'join.*","' src/resources/extensions/gsd/markdown-renderer.ts` — depends serialization should use `.join(",")` not `JSON.stringify`
+- Run renderer regression: `node --import ./src/resources/extensions/gsd/tests/resolve-ts.mjs --experimental-strip-types --test src/resources/extensions/gsd/tests/markdown-renderer.test.ts`
 
 ## Files Created/Modified
 
