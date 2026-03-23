@@ -12,6 +12,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { join, relative } from "node:path";
 import {
   getAllMilestones,
+  getMilestone,
   getMilestoneSlices,
   getSliceTasks,
   getTask,
@@ -147,6 +148,66 @@ async function writeAndStore(
   }
 
   invalidateCaches();
+}
+
+function renderRoadmapMarkdown(milestone: MilestoneRow, slices: SliceRow[]): string {
+  const lines: string[] = [];
+
+  lines.push(`# ${milestone.id}: ${milestone.title || milestone.id}`);
+  lines.push("");
+  lines.push(`**Vision:** ${milestone.vision}`);
+  lines.push("");
+
+  if (milestone.success_criteria.length > 0) {
+    lines.push("## Success Criteria");
+    lines.push("");
+    for (const criterion of milestone.success_criteria) {
+      lines.push(`- ${criterion}`);
+    }
+    lines.push("");
+  }
+
+  lines.push("## Slices");
+  lines.push("");
+  for (const slice of slices) {
+    const done = slice.status === "complete" ? "x" : " ";
+    const depends = JSON.stringify(slice.depends ?? []);
+    lines.push(`- [${done}] **${slice.id}: ${slice.title}** \`risk:${slice.risk}\` \`depends:${depends}\``);
+    lines.push(`  > After this: ${slice.demo}`);
+    lines.push("");
+  }
+
+  if (milestone.boundary_map_markdown.trim()) {
+    lines.push("## Boundary Map");
+    lines.push("");
+    lines.push(milestone.boundary_map_markdown.trim());
+    lines.push("");
+  }
+
+  return `${lines.join("\n").trimEnd()}\n`;
+}
+
+export async function renderRoadmapFromDb(
+  basePath: string,
+  milestoneId: string,
+): Promise<{ roadmapPath: string; content: string }> {
+  const milestone = getMilestone(milestoneId);
+  if (!milestone) {
+    throw new Error(`milestone ${milestoneId} not found`);
+  }
+
+  const slices = getMilestoneSlices(milestoneId);
+  const absPath = resolveMilestoneFile(basePath, milestoneId, "ROADMAP") ??
+    join(gsdRoot(basePath), "milestones", milestoneId, `${milestoneId}-ROADMAP.md`);
+  const artifactPath = toArtifactPath(absPath, basePath);
+  const content = renderRoadmapMarkdown(milestone, slices);
+
+  await writeAndStore(absPath, artifactPath, content, {
+    artifact_type: "ROADMAP",
+    milestone_id: milestoneId,
+  });
+
+  return { roadmapPath: absPath, content };
 }
 
 // ─── Roadmap Checkbox Rendering ───────────────────────────────────────────

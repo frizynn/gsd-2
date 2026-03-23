@@ -291,6 +291,97 @@ export function registerDbTools(pi: ExtensionAPI): void {
   pi.registerTool(milestoneGenerateIdTool);
   registerAlias(pi, milestoneGenerateIdTool, "gsd_generate_milestone_id", "gsd_milestone_generate_id");
 
+  // ─── gsd_plan_milestone (gsd_milestone_plan alias) ─────────────────────
+
+  const planMilestoneExecute = async (_toolCallId: any, params: any, _signal: any, _onUpdate: any, _ctx: any) => {
+    const dbAvailable = await ensureDbOpen();
+    if (!dbAvailable) {
+      return {
+        content: [{ type: "text" as const, text: "Error: GSD database is not available. Cannot plan milestone." }],
+        details: { operation: "plan_milestone", error: "db_unavailable" } as any,
+      };
+    }
+    try {
+      const { handlePlanMilestone } = await import("../tools/plan-milestone.js");
+      const result = await handlePlanMilestone(params, process.cwd());
+      if ("error" in result) {
+        return {
+          content: [{ type: "text" as const, text: `Error planning milestone: ${result.error}` }],
+          details: { operation: "plan_milestone", error: result.error } as any,
+        };
+      }
+      return {
+        content: [{ type: "text" as const, text: `Planned milestone ${result.milestoneId}` }],
+        details: {
+          operation: "plan_milestone",
+          milestoneId: result.milestoneId,
+          roadmapPath: result.roadmapPath,
+        } as any,
+      };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      process.stderr.write(`gsd-db: plan_milestone tool failed: ${msg}\n`);
+      return {
+        content: [{ type: "text" as const, text: `Error planning milestone: ${msg}` }],
+        details: { operation: "plan_milestone", error: msg } as any,
+      };
+    }
+  };
+
+  const planMilestoneTool = {
+    name: "gsd_plan_milestone",
+    label: "Plan Milestone",
+    description:
+      "Write milestone planning state to the GSD database, render ROADMAP.md from DB, and clear caches after a successful render.",
+    promptSnippet: "Plan a milestone via DB write + roadmap render + cache invalidation",
+    promptGuidelines: [
+      "Use gsd_plan_milestone for milestone planning instead of writing ROADMAP.md directly.",
+      "Keep parameters flat and provide the full milestone planning payload, including slices.",
+      "The tool validates input, writes milestone and slice planning data transactionally, renders ROADMAP.md from DB, and clears both state and parse caches after success.",
+      "Use the canonical name gsd_plan_milestone; gsd_milestone_plan is only an alias.",
+    ],
+    parameters: Type.Object({
+      milestoneId: Type.String({ description: "Milestone ID (e.g. M001)" }),
+      title: Type.String({ description: "Milestone title" }),
+      status: Type.Optional(Type.String({ description: "Milestone status (defaults to active)" })),
+      dependsOn: Type.Optional(Type.Array(Type.String(), { description: "Milestone dependencies" })),
+      vision: Type.String({ description: "Milestone vision" }),
+      successCriteria: Type.Array(Type.String(), { description: "Top-level success criteria bullets" }),
+      keyRisks: Type.Array(Type.Object({
+        risk: Type.String({ description: "Risk statement" }),
+        whyItMatters: Type.String({ description: "Why the risk matters" }),
+      }), { description: "Structured risk entries" }),
+      proofStrategy: Type.Array(Type.Object({
+        riskOrUnknown: Type.String({ description: "Risk or unknown to retire" }),
+        retireIn: Type.String({ description: "Where it will be retired" }),
+        whatWillBeProven: Type.String({ description: "What proof will be produced" }),
+      }), { description: "Structured proof strategy entries" }),
+      verificationContract: Type.String({ description: "Verification contract text" }),
+      verificationIntegration: Type.String({ description: "Integration verification text" }),
+      verificationOperational: Type.String({ description: "Operational verification text" }),
+      verificationUat: Type.String({ description: "UAT verification text" }),
+      definitionOfDone: Type.Array(Type.String(), { description: "Definition of done bullets" }),
+      requirementCoverage: Type.String({ description: "Requirement coverage text" }),
+      boundaryMapMarkdown: Type.String({ description: "Boundary map markdown block" }),
+      slices: Type.Array(Type.Object({
+        sliceId: Type.String({ description: "Slice ID (e.g. S01)" }),
+        title: Type.String({ description: "Slice title" }),
+        risk: Type.String({ description: "Slice risk" }),
+        depends: Type.Array(Type.String(), { description: "Slice dependency IDs" }),
+        demo: Type.String({ description: "Roadmap demo text / After this" }),
+        goal: Type.String({ description: "Slice goal" }),
+        successCriteria: Type.String({ description: "Slice success criteria block" }),
+        proofLevel: Type.String({ description: "Slice proof level" }),
+        integrationClosure: Type.String({ description: "Slice integration closure" }),
+        observabilityImpact: Type.String({ description: "Slice observability impact" }),
+      }), { description: "Planned slices for the milestone" }),
+    }),
+    execute: planMilestoneExecute,
+  };
+
+  pi.registerTool(planMilestoneTool);
+  registerAlias(pi, planMilestoneTool, "gsd_milestone_plan", "gsd_plan_milestone");
+
   // ─── gsd_task_complete (gsd_complete_task alias) ────────────────────────
 
   const taskCompleteExecute = async (_toolCallId: any, params: any, _signal: any, _onUpdate: any, _ctx: any) => {
