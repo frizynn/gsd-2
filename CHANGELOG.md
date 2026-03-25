@@ -6,6 +6,18 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.46.1] - 2026-03-25
+
+### Fixed
+- **ci**: prevent windows-portability from blocking pipeline
+- **ci**: prevent pipeline race condition on release push
+- **gsd**: create empty DB for fresh projects with empty .gsd/ (#2510)
+- **remote-questions**: hydrate remote channel tokens from auth.json on startup
+
+### Changed
+- trigger CI to pick up pipeline race condition fix
+- trigger pipeline with race condition fix
+
 ## [2.46.0] - 2026-03-25
 
 ### Added
@@ -1817,7 +1829,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - License updated to MIT
 
-[Unreleased]: https://github.com/gsd-build/gsd-2/compare/v2.46.0...HEAD
+[Unreleased]: https://github.com/gsd-build/gsd-2/compare/v2.46.1...HEAD
+[2.46.1]: https://github.com/gsd-build/gsd-2/compare/v2.46.0...v2.46.1
 [2.46.0]: https://github.com/gsd-build/gsd-2/compare/v2.45.0...v2.46.0
 [2.45.0]: https://github.com/gsd-build/gsd-2/compare/v2.44.0...v2.45.0
 [2.44.0]: https://github.com/gsd-build/gsd-2/compare/v2.43.0...v2.44.0
