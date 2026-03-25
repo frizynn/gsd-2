@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 concurrency:
-  group: pipeline-${{ github.sha }}
+  group: pipeline-main
   cancel-in-progress: false
 
 permissions:
@@ -187,6 +187,7 @@ jobs:
           git add package.json package-lock.json CHANGELOG.md native/npm/*/package.json pkg/package.json packages/pi-coding-agent/package.json
           git commit -m "release: v${RELEASE_VERSION}"
           git tag "v${RELEASE_VERSION}"
+          git pull --rebase origin main
           git push origin main
           git push origin "v${RELEASE_VERSION}"
 
