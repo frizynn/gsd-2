@@ -73,6 +73,7 @@ import {
   getOldestInFlightToolAgeMs as _getOldestInFlightToolAgeMs,
   getInFlightToolCount,
   getOldestInFlightToolStart,
+  hasInteractiveToolInFlight,
   clearInFlightTools,
 } from "./auto-tool-tracking.js";
 import { closeoutUnit } from "./auto-unit-closeout.js";
@@ -375,8 +376,8 @@ export function getAutoModeStartModel(): {
 }
 
 // Tool tracking — delegates to auto-tool-tracking.ts
-export function markToolStart(toolCallId: string): void {
-  _markToolStart(toolCallId, s.active);
+export function markToolStart(toolCallId: string, toolName?: string): void {
+  _markToolStart(toolCallId, s.active, toolName);
 }
 
 export function markToolEnd(toolCallId: string): void {
