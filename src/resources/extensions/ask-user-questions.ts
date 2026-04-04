@@ -75,7 +75,9 @@ const AskUserQuestionsParams = Type.Object({
 // ─── Per-turn deduplication ──────────────────────────────────────────────────
 // Prevents duplicate question dispatches (especially to remote channels like
 // Discord) when the LLM calls ask_user_questions multiple times with the same
-// questions in a single turn. Keyed by sorted question IDs.
+// questions in a single turn. Keyed by full canonicalized payload (id, header,
+// question, options, allowMultiple) — not just IDs — so that calls with the
+// same IDs but different text/options are treated as distinct.
 
 import { createHash } from "node:crypto";
 
@@ -86,9 +88,18 @@ interface CachedResult {
 
 const turnCache = new Map<string, CachedResult>();
 
-function questionSignature(questions: Array<{ id: string }>): string {
-	const ids = questions.map((q) => q.id).sort().join("|");
-	return createHash("sha256").update(ids).digest("hex").slice(0, 16);
+/** @internal Exported for testing only. */
+export function questionSignature(questions: Question[]): string {
+	const canonical = questions
+		.map((q) => ({
+			id: q.id,
+			header: q.header,
+			question: q.question,
+			options: (q.options || []).map((o) => ({ label: o.label, description: o.description })),
+			allowMultiple: !!q.allowMultiple,
+		}))
+		.sort((a, b) => a.id.localeCompare(b.id));
+	return createHash("sha256").update(JSON.stringify(canonical)).digest("hex").slice(0, 16);
 }
 
 /** Reset the dedup cache. Called on session boundaries. */

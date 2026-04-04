@@ -17,6 +17,7 @@ import {
 } from "../bootstrap/tool-call-loop-guard.ts";
 import {
   resetAskUserQuestionsCache,
+  questionSignature,
 } from "../../ask-user-questions.ts";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -67,5 +68,53 @@ describe("ask_user_questions dedup", () => {
     // Verify the reset function exists and is callable
     resetAskUserQuestionsCache();
     // No error means the cache module is properly exported and functional
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // questionSignature: full-payload hashing prevents stale cache hits
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  test("same IDs with different question text produce different signatures", () => {
+    const q1 = [{ id: "scope", header: "Scope", question: "Which apps to cover?",
+      options: [{ label: "All", description: "Everything" }] }];
+    const q2 = [{ id: "scope", header: "Scope", question: "Which services to test?",
+      options: [{ label: "All", description: "Everything" }] }];
+
+    assert.notEqual(questionSignature(q1), questionSignature(q2),
+      "Different question text with same ID must produce different signatures");
+  });
+
+  test("same IDs with different options produce different signatures", () => {
+    const q1 = [{ id: "scope", header: "Scope", question: "Pick one",
+      options: [{ label: "A", description: "Option A" }] }];
+    const q2 = [{ id: "scope", header: "Scope", question: "Pick one",
+      options: [{ label: "B", description: "Option B" }] }];
+
+    assert.notEqual(questionSignature(q1), questionSignature(q2),
+      "Different options with same ID must produce different signatures");
+  });
+
+  test("identical payloads in different order produce same signature", () => {
+    const q1 = [
+      { id: "b", header: "B", question: "Q2", options: [{ label: "X", description: "x" }] },
+      { id: "a", header: "A", question: "Q1", options: [{ label: "Y", description: "y" }] },
+    ];
+    const q2 = [
+      { id: "a", header: "A", question: "Q1", options: [{ label: "Y", description: "y" }] },
+      { id: "b", header: "B", question: "Q2", options: [{ label: "X", description: "x" }] },
+    ];
+
+    assert.equal(questionSignature(q1), questionSignature(q2),
+      "Same questions in different order must produce the same signature");
+  });
+
+  test("allowMultiple difference produces different signature", () => {
+    const q1 = [{ id: "scope", header: "Scope", question: "Pick",
+      options: [{ label: "A", description: "a" }], allowMultiple: false }];
+    const q2 = [{ id: "scope", header: "Scope", question: "Pick",
+      options: [{ label: "A", description: "a" }], allowMultiple: true }];
+
+    assert.notEqual(questionSignature(q1), questionSignature(q2),
+      "allowMultiple difference must produce different signatures");
   });
 });
